@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Keyword Google Rank Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; padding: 32px 24px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);}
+    h2 { text-align: center; }
+    label { display: block; margin-top: 18px; font-weight: bold; }
+    textarea, input, select { width: 100%; padding: 8px; margin-top: 6px; border: 1px solid #ccc; border-radius: 4px; }
+    button { margin-top: 24px; width: 100%; padding: 12px; background: #007bff; color: #fff; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; }
+    button:disabled { background: #aaa; }
+    table { width: 100%; border-collapse: collapse; margin-top: 32px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #f0f0f0; }
+    .loading { text-align: center; margin-top: 24px; }
+    .error { color: #c00; text-align: center; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Keyword Google Rank Checker</h2>
+    <form id="rankForm">
+      <label for="keywords">Keyword List (one per line):</label>
+      <textarea id="keywords" rows="5" required></textarea>
+
+      <label for="location">Location (City):</label>
+      <input type="text" id="location" placeholder="e.g. Louisville" required>
+
+      <label for="website">Website URL:</label>
+      <input type="url" id="website" placeholder="e.g. https://example.com" required>
+
+      <button type="submit" id="submitBtn">Check Rankings</button>
+    </form>
+    <div class="loading" id="loading" style="display:none;">Checking rankings, please wait...</div>
+    <div class="error" id="error"></div>
+    <table id="resultsTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>Keyword</th>
+          <th>Rank</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+  <script>
+    document.getElementById('rankForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      document.getElementById('error').textContent = '';
+      document.getElementById('resultsTable').style.display = 'none';
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('submitBtn').disabled = true;
+
+      const keywords = document.getElementById('keywords').value.split('\n').map(k => k.trim()).filter(k => k);
+      const location = document.getElementById('location').value.trim();
+      const website = document.getElementById('website').value.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+      const results = [];
+      for (let keyword of keywords) {
+        try {
+          const resp = await fetch('/serpapi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keyword, location })
+          });
+          if (!resp.ok) throw new Error('Proxy error');
+          const data = await resp.json();
+
+          if (data.error) {
+            results.push({ keyword, rank: `API Error: ${data.error}` });
+          } else if (data.organic_results && Array.isArray(data.organic_results)) {
+            let foundRank = null;
+            for (let i = 0; i < data.organic_results.length; i++) {
+              const result = data.organic_results[i];
+              if (result.link && result.link.replace(/^https?:\/\//, '').replace(/\/$/, '').includes(website)) {
+                foundRank = i + 1;
+                break;
+              }
+            }
+            results.push({ keyword, rank: foundRank ? foundRank : 'Not in top 100' });
+          } else {
+            results.push({ keyword, rank: 'No organic results' });
+          }
+        } catch (err) {
+          results.push({ keyword, rank: 'Network or JS Error' });
+        }
+      }
+
+      // Show results
+      const tbody = document.getElementById('resultsBody');
+      tbody.innerHTML = '';
+      for (let r of results) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.keyword}</td><td>${r.rank}</td>`;
+        tbody.appendChild(tr);
+      }
+      document.getElementById('resultsTable').style.display = '';
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('submitBtn').disabled = false;
+    });
+  </script>
+</body>
+</html>
